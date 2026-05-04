@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, send_file, jsonify
 import os
 from moviepy.editor import ImageSequenceClip, AudioFileClip, CompositeAudioClip
 from gtts import gTTS
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -12,24 +13,21 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # =========================
-# SAFE OPENAI STORY FUNCTION
+# SAFE STORY FUNCTION
 # =========================
 def generate_story(vibe, language):
     try:
         from openai import OpenAI
 
         api_key = os.environ.get("OPENAI_API_KEY")
-
-        # Debug print (shows in Render logs)
-        print("API KEY LOADED:", "YES" if api_key else "NO")
+        print("API KEY:", "FOUND" if api_key else "MISSING")
 
         if not api_key:
-            # Instead of crashing → fallback story
-            return f"This is a {vibe} journey full of beautiful memories."
+            return f"This is a {vibe} journey full of memories."
 
         client = OpenAI(api_key=api_key)
 
-        prompt = f"Create a {vibe} travel story in {language}. Only narration, no text labels."
+        prompt = f"Create a {vibe} travel story in {language}. Only narration."
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
@@ -40,22 +38,18 @@ def generate_story(vibe, language):
 
     except Exception as e:
         print("OpenAI ERROR:", str(e))
-        # Fallback story (prevents crash)
-        return f"A wonderful {vibe} trip filled with unforgettable moments."
-
+        return f"A beautiful {vibe} journey."
 
 # =========================
 # MUSIC FUNCTION
 # =========================
 def get_music(vibe):
     path = f"static/music/{vibe}.mp3"
-
-    if not os.path.exists(path):
-        print("Music file missing:", path)
+    if os.path.exists(path):
+        return path
+    else:
+        print("Music not found:", path)
         return None
-
-    return path
-
 
 # =========================
 # ROUTES
@@ -74,40 +68,76 @@ def create():
         vibe = request.form.get("vibe")
         language = request.form.get("language")
 
-        print("FILES:", files)
-        print("VIBE:", vibe)
-        print("LANGUAGE:", language)
-
         if not files or files[0].filename == "":
-            return "No files uploaded", 400
+            return "No images uploaded", 400
 
-        image_paths = []
-        for file in files:
-            path = os.path.join("uploads", file.filename)
+        # =========================
+        # RESIZE IMAGES (FIX)
+        # =========================
+        processed_images = []
+
+        for i, file in enumerate(files):
+            path = os.path.join(UPLOAD_FOLDER, file.filename)
             file.save(path)
-            image_paths.append(path)
 
-        print("Images saved")
+            img = Image.open(path)
+            img = img.convert("RGB")
 
-        # TEMP TEST (skip OpenAI for now)
-        story = "This is a test story for debugging."
+            # Resize all images to same size
+            img = img.resize((1280, 720))
 
-        from gtts import gTTS
-        voice_path = "outputs/voice.mp3"
-        tts = gTTS(story, lang="en")
+            new_path = os.path.join(UPLOAD_FOLDER, f"resized_{i}.jpg")
+            img.save(new_path, "JPEG")
+
+            processed_images.append(new_path)
+
+        print("Images processed")
+
+        # =========================
+        # STORY
+        # =========================
+        story = generate_story(vibe, language)
+        print("Story generated")
+
+        # =========================
+        # VOICE
+        # =========================
+        lang_code = "hi" if language == "Hindi" else "en"
+        voice_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
+
+        tts = gTTS(story, lang=lang_code)
         tts.save(voice_path)
 
         print("Voice created")
 
-        from moviepy.editor import ImageSequenceClip, AudioFileClip
+        # =========================
+        # VIDEO
+        # =========================
+        clip = ImageSequenceClip(processed_images, fps=1)
 
-        clip = ImageSequenceClip(image_paths, fps=1).resize(height=720)
-
+        # =========================
+        # AUDIO
+        # =========================
         voice_audio = AudioFileClip(voice_path)
-        clip = clip.set_audio(voice_audio)
 
-        output_path = "outputs/test_video.mp4"
-        clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+        music_path = get_music(vibe)
+        if music_path:
+            music_audio = AudioFileClip(music_path).volumex(0.2)
+            final_audio = CompositeAudioClip([voice_audio, music_audio])
+        else:
+            final_audio = voice_audio
+
+        final_audio = final_audio.set_duration(clip.duration)
+
+        video = clip.set_audio(final_audio)
+
+        output_path = os.path.join(OUTPUT_FOLDER, "final_video.mp4")
+
+        video.write_videofile(
+            output_path,
+            codec="libx264",
+            audio_codec="aac"
+        )
 
         print("Video created")
 
@@ -115,7 +145,7 @@ def create():
 
     except Exception as e:
         print("FULL ERROR:", str(e))
-        return f"Error: {str(e)}", 500
+        return jsonify({"error": str(e)}), 500
 
 
 # =========================
