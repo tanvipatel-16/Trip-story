@@ -1,27 +1,212 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Trip Story AI</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip Story</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: white;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    padding: 20px;
+}
+
+/* HERO */
+.hero {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.hero h1 {
+    font-size: 3rem;
+    background: linear-gradient(45deg, #6366f1, #ec4899);
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.hero p {
+    margin-top: 10px;
+    color: #cbd5f5;
+}
+
+/* CARD */
+.card {
+    background: rgba(255,255,255,0.05);
+    border-radius: 20px;
+    padding: 30px;
+    backdrop-filter: blur(10px);
+}
+
+/* UPLOAD BOX */
+.upload-box {
+    border: 2px dashed #6366f1;
+    padding: 40px;
+    text-align: center;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.upload-box:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+/* PREVIEW */
+.preview {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.preview img {
+    width: 80px;
+    margin: 5px;
+    border-radius: 10px;
+}
+
+/* OPTIONS */
+.options {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+select {
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+}
+
+/* BUTTON */
+button {
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 30px;
+    border: none;
+    background: linear-gradient(45deg, #6366f1, #ec4899);
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover {
+    transform: scale(1.05);
+}
+
+/* LOADER */
+.loader {
+    display: none;
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* FOOTER */
+.footer {
+    text-align: center;
+    margin-top: 50px;
+    color: #94a3b8;
+}
+</style>
 </head>
+
 <body>
-    <h1>Trip Story AI 🎬</h1>
 
-    <form action="/create" method="POST" enctype="multipart/form-data">
-        <input type="file" name="photos" multiple required><br><br>
+<div class="container">
 
-        <select name="vibe">
-            <option value="funny">Funny</option>
-            <option value="dramatic">Dramatic</option>
-            <option value="emotional">Emotional</option>
-            <option value="cinematic">Cinematic</option>
-        </select><br><br>
+    <!-- HERO -->
+    <div class="hero">
+        <h1>Trip Story</h1>
+        <p>Turn your travel photos into cinematic stories</p>
+    </div>
 
-        <select name="language">
-            <option>English</option>
-            <option>Hindi</option>
-        </select><br><br>
+    <!-- FORM CARD -->
+    <div class="card">
 
-        <button type="submit">Create Video</button>
-    </form>
+        <form id="form" action="/create" method="POST" enctype="multipart/form-data">
+
+            <!-- Upload -->
+            <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+                📸 Click or drag photos here (5–10 images)
+            </div>
+
+            <input type="file" name="photos" id="fileInput" multiple required hidden>
+
+            <!-- Preview -->
+            <div class="preview" id="preview"></div>
+
+            <!-- Options -->
+            <div class="options">
+                <select name="vibe">
+                    <option value="funny">Funny</option>
+                    <option value="emotional">Emotional</option>
+                    <option value="dramatic">Dramatic</option>
+                    <option value="cinematic">Cinematic</option>
+                </select>
+
+                <select name="language">
+                    <option value="English">English</option>
+                    <option value="Hindi">Hindi</option>
+                </select>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit">Generate Video</button>
+
+            <!-- Loader -->
+            <div class="loader" id="loader">
+                ⏳ Generating your cinematic story...
+            </div>
+
+        </form>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        © Trip Story
+    </div>
+
+</div>
+
+<script>
+const fileInput = document.getElementById("fileInput");
+const preview = document.getElementById("preview");
+const loader = document.getElementById("loader");
+const form = document.getElementById("form");
+
+// Image preview
+fileInput.addEventListener("change", () => {
+    preview.innerHTML = "";
+    Array.from(fileInput.files).forEach(file => {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(file);
+        preview.appendChild(img);
+    });
+});
+
+// Show loader
+form.addEventListener("submit", () => {
+    loader.style.display = "block";
+});
+</script>
+
 </body>
 </html>
