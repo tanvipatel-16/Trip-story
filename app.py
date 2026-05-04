@@ -18,7 +18,16 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # =========================
-# AI STORY (SMART)
+# SAFE RESAMPLING (FIX FOR PILLOW)
+# =========================
+try:
+    RESAMPLE = Image.Resampling.LANCZOS
+except AttributeError:
+    RESAMPLE = Image.LANCZOS
+
+
+# =========================
+# AI STORY
 # =========================
 def generate_story(vibe, language):
     try:
@@ -26,15 +35,14 @@ def generate_story(vibe, language):
         api_key = os.getenv("OPENAI_API_KEY")
 
         if not api_key:
-            return f"A {vibe} journey full of memories and emotions."
+            return f"A {vibe} journey full of beautiful memories."
 
         client = OpenAI(api_key=api_key)
 
         prompt = f"""
         Create a {vibe} travel story in {language}.
-        Make it emotional, cinematic, and natural for voice narration.
-        Keep it around 80-120 words.
-        No headings. Only storytelling narration.
+        Make it emotional, natural and suitable for voice narration.
+        Keep it short and engaging.
         """
 
         res = client.chat.completions.create(
@@ -45,17 +53,16 @@ def generate_story(vibe, language):
         return res.choices[0].message.content
 
     except Exception as e:
-        print("OpenAI Error:", e)
+        print("OpenAI error:", e)
         return f"A beautiful {vibe} journey."
 
 # =========================
-# HUMAN VOICE (ElevenLabs)
+# VOICE (ElevenLabs + fallback)
 # =========================
 def generate_voice(text, output_path):
     api_key = os.getenv("ELEVENLABS_API_KEY")
 
     if not api_key:
-        # fallback to gTTS
         from gtts import gTTS
         tts = gTTS(text)
         tts.save(output_path)
@@ -76,13 +83,17 @@ def generate_voice(text, output_path):
         }
     }
 
-    response = requests.post(url, json=data, headers=headers)
+    try:
+        response = requests.post(url, json=data, headers=headers)
 
-    if response.status_code == 200:
-        with open(output_path, "wb") as f:
-            f.write(response.content)
-    else:
-        print("ElevenLabs failed, fallback to gTTS")
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+        else:
+            raise Exception("ElevenLabs failed")
+
+    except Exception as e:
+        print("Voice fallback:", e)
         from gtts import gTTS
         tts = gTTS(text)
         tts.save(output_path)
@@ -112,7 +123,7 @@ def create():
             return "No images uploaded", 400
 
         # =========================
-        # IMAGE PROCESSING
+        # IMAGE PROCESSING (FIXED)
         # =========================
         processed_images = []
 
@@ -121,10 +132,12 @@ def create():
             file.save(path)
 
             img = Image.open(path).convert("RGB")
-            img = img.resize((1280, 720))
+
+            # ✅ FIXED resize (no ANTIALIAS error)
+            img = img.resize((1280, 720), RESAMPLE)
 
             new_path = os.path.join(UPLOAD_FOLDER, f"img_{i}.jpg")
-            img.save(new_path)
+            img.save(new_path, "JPEG")
 
             processed_images.append(new_path)
 
@@ -134,7 +147,7 @@ def create():
         story = generate_story(vibe, language)
 
         # =========================
-        # VOICE (REAL)
+        # VOICE
         # =========================
         voice_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
         generate_voice(story, voice_path)
@@ -160,7 +173,7 @@ def create():
         video = concatenate_videoclips(clips, method="compose")
 
         # =========================
-        # AUDIO MIX (SMART)
+        # AUDIO MIX
         # =========================
         music_path = get_music(vibe)
 
