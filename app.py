@@ -81,7 +81,7 @@ def create():
 
         video = clip.set_audio(final_audio)
         output_path = os.path.join(OUTPUT_FOLDER, "final_video.mp4")
-        video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+        video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac")
 
         return send_file(output_path, as_attachment=True)
 
