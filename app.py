@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, send_file, jsonify
 import os
-from moviepy.editor import ImageClip, AudioFileClip, CompositeAudioClip, concatenate_videoclips
+from moviepy.editor import ImageSequenceClip, AudioFileClip, CompositeAudioClip
 from gtts import gTTS
 from PIL import Image
 
@@ -12,23 +12,25 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 🎯 Generate Story
+
+# 🎯 Generate Story (stable)
 def generate_story(vibe, language):
     try:
         from openai import OpenAI
         api_key = os.environ.get("OPENAI_API_KEY")
 
         if not api_key:
-            return f"This is a {vibe} journey full of beautiful memories and unforgettable moments."
+            if language == "Hindi":
+                return "यह एक खूबसूरत यात्रा है जिसमें यादगार पल और शानदार अनुभव शामिल हैं।"
+            return "This is a beautiful journey filled with unforgettable memories and experiences."
 
         client = OpenAI(api_key=api_key)
 
         prompt = f"""
-        Create a {vibe} travel story in {language}.
+        Write a {vibe} travel story in {language}.
         Make it emotional and engaging.
-        Length: at least 120 words.
-        Write like narration for a video.
-        Only storytelling, no headings.
+        Minimum 100 words.
+        Only narration.
         """
 
         response = client.chat.completions.create(
@@ -39,16 +41,14 @@ def generate_story(vibe, language):
         return response.choices[0].message.content
 
     except Exception as e:
-        print("OpenAI ERROR:", str(e))
-        return f"A beautiful {vibe} journey filled with amazing moments and memories that last forever."
+        print("Story ERROR:", str(e))
+        return "A beautiful journey full of memories."
 
 
-# 🎵 Get Music
+# 🎵 Music
 def get_music(vibe):
     path = f"static/music/{vibe}.mp3"
-    if os.path.exists(path):
-        return path
-    return None
+    return path if os.path.exists(path) else None
 
 
 @app.route("/")
@@ -56,7 +56,6 @@ def index():
     return render_template("index.html")
 
 
-# 🎬 Main Route
 @app.route("/create", methods=["POST"])
 def create():
     try:
@@ -67,8 +66,9 @@ def create():
         if not files or files[0].filename == "":
             return "No images uploaded", 400
 
-        # 🖼 Resize Images
         processed_images = []
+
+        # 🖼 Resize images
         for i, file in enumerate(files):
             path = os.path.join(UPLOAD_FOLDER, file.filename)
             file.save(path)
@@ -79,10 +79,10 @@ def create():
 
             processed_images.append(new_path)
 
-        # 🧠 Generate Story
+        # 🧠 Story
         story = generate_story(vibe, language)
 
-        # 🗣 Generate Voice
+        # 🗣 Voice
         lang_code = "hi" if language == "Hindi" else "en"
         voice_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
 
@@ -92,28 +92,17 @@ def create():
         voice_audio = AudioFileClip(voice_path)
         voice_duration = voice_audio.duration
 
-        # 🎬 FIXED DURATION LOGIC
-        min_duration = 2  # minimum seconds per image
+        # 🎬 FIXED DURATION
+        min_duration = 2
+        duration_per_image = max(min_duration, voice_duration / len(processed_images))
 
-        calculated = voice_duration / len(processed_images)
-        duration_per_image = max(min_duration, calculated)
+        # 🎞 SIMPLE (STABLE) VIDEO
+        clip = ImageSequenceClip(
+            processed_images,
+            durations=[duration_per_image] * len(processed_images)
+        )
 
-        # 🎞 Create Clips with Effects
-        clips = []
-
-        for img_path in processed_images:
-            clip = (
-                ImageClip(img_path)
-                .set_duration(duration_per_image)
-                .resize(lambda t: 1 + 0.05 * t)  # zoom effect
-                .fadein(0.5)
-                .fadeout(0.5)
-            )
-            clips.append(clip)
-
-        final_clip = concatenate_videoclips(clips, method="compose")
-
-        # 🎵 Add Music
+        # 🎵 Music
         music_path = get_music(vibe)
 
         if music_path:
@@ -122,7 +111,7 @@ def create():
         else:
             final_audio = voice_audio
 
-        video = final_clip.set_audio(final_audio)
+        video = clip.set_audio(final_audio)
 
         output_path = os.path.join(OUTPUT_FOLDER, "final_video.mp4")
 
