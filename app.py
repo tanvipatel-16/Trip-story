@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, send_file, jsonify
 import os
+import base64
 from moviepy.editor import ImageSequenceClip, AudioFileClip, CompositeAudioClip
 from gtts import gTTS
 from PIL import Image
@@ -13,23 +14,58 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# 🎯 Generate Story
-def generate_story(vibe, language):
+# 🧠 STEP 1: Describe images using AI
+def describe_images(image_paths):
     try:
         from openai import OpenAI
-        api_key = os.environ.get("OPENAI_API_KEY")
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-        if not api_key:
-            if language == "Hindi":
-                return "यह एक खूबसूरत यात्रा है जिसमें यादगार पल और शानदार अनुभव शामिल हैं।"
-            return "This is a beautiful journey filled with unforgettable memories."
+        descriptions = []
 
-        client = OpenAI(api_key=api_key)
+        for path in image_paths:
+            with open(path, "rb") as img_file:
+                base64_image = base64.b64encode(img_file.read()).decode("utf-8")
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Describe this travel photo in one short sentence."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            )
+
+            descriptions.append(response.choices[0].message.content)
+
+        return " ".join(descriptions)
+
+    except Exception as e:
+        print("Image AI ERROR:", str(e))
+        return "A journey with beautiful places and memories."
+
+
+# 🧠 STEP 2: Generate story from descriptions
+def generate_story(vibe, language, image_text):
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
         prompt = f"""
-        Write a {vibe} travel story in {language}.
+        Based on these travel photo descriptions:
+        {image_text}
+
+        Create a {vibe} travel story in {language}.
         Make it emotional and engaging.
-        Minimum 100 words.
+        Minimum 120 words.
         Only narration.
         """
 
@@ -42,7 +78,7 @@ def generate_story(vibe, language):
 
     except Exception as e:
         print("Story ERROR:", str(e))
-        return "A beautiful journey full of memories."
+        return "A journey full of memories and emotions."
 
 
 # 🎵 Music
@@ -56,6 +92,7 @@ def index():
     return render_template("index.html")
 
 
+# 🎬 MAIN ROUTE
 @app.route("/create", methods=["POST"])
 def create():
     try:
@@ -68,7 +105,7 @@ def create():
 
         processed_images = []
 
-        # 🖼 Resize Images
+        # 🖼 Resize images
         for i, file in enumerate(files):
             path = os.path.join(UPLOAD_FOLDER, file.filename)
             file.save(path)
@@ -79,8 +116,11 @@ def create():
 
             processed_images.append(new_path)
 
-        # 🧠 Story
-        story = generate_story(vibe, language)
+        # 🧠 AI understands images
+        image_text = describe_images(processed_images)
+
+        # ✍️ AI creates story
+        story = generate_story(vibe, language, image_text)
 
         # 🗣 Voice
         lang_code = "hi" if language == "Hindi" else "en"
@@ -90,30 +130,21 @@ def create():
         tts.save(voice_path)
 
         voice_audio = AudioFileClip(voice_path)
+        voice_duration = voice_audio.duration
 
-        # 🎬 VIDEO DURATION FIX
-        min_duration = 2
-        duration_per_image = max(min_duration, voice_audio.duration / len(processed_images))
-        video_duration = duration_per_image * len(processed_images)
+        # 🎬 VIDEO = MATCH VOICE (NO CRASH)
+        duration_per_image = voice_duration / len(processed_images)
 
-        # 🎞 Create Video
         clip = ImageSequenceClip(
             processed_images,
             durations=[duration_per_image] * len(processed_images)
         )
 
-        # 🎧 Extend voice to match video
-        voice_audio = voice_audio.set_duration(video_duration)
-
         # 🎵 Music
         music_path = get_music(vibe)
 
         if music_path:
-            music_audio = AudioFileClip(music_path).volumex(0.2)
-
-            # loop music to match video length
-            music_audio = music_audio.audio_loop(duration=video_duration)
-
+            music_audio = AudioFileClip(music_path).volumex(0.2).set_duration(voice_duration)
             final_audio = CompositeAudioClip([voice_audio, music_audio])
         else:
             final_audio = voice_audio
