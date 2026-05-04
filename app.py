@@ -12,58 +12,36 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# =========================
-# SAFE STORY FUNCTION
-# =========================
 def generate_story(vibe, language):
     try:
         from openai import OpenAI
-
         api_key = os.environ.get("OPENAI_API_KEY")
-        print("API KEY:", "FOUND" if api_key else "MISSING")
-
         if not api_key:
-            return f"This is a {vibe} journey full of memories."
-
+            return f"This is a {vibe} journey full of beautiful memories."
         client = OpenAI(api_key=api_key)
-
-        prompt = f"Create a {vibe} travel story in {language}. Only narration."
-
+        prompt = f"Create a detailed {vibe} travel story in {language} with at least 5 sentences. Only narration, no labels."
         response = client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]
         )
-
         return response.choices[0].message.content
-
     except Exception as e:
         print("OpenAI ERROR:", str(e))
-        return f"A beautiful {vibe} journey."
+        return f"A beautiful {vibe} journey full of wonderful memories and amazing experiences."
 
-# =========================
-# MUSIC FUNCTION
-# =========================
 def get_music(vibe):
     path = f"static/music/{vibe}.mp3"
     if os.path.exists(path):
         return path
-    else:
-        print("Music not found:", path)
-        return None
+    return None
 
-# =========================
-# ROUTES
-# =========================
 @app.route("/")
 def index():
     return render_template("index.html")
 
-
 @app.route("/create", methods=["POST"])
 def create():
     try:
-        print("=== REQUEST START ===")
-
         files = request.files.getlist("photos")
         vibe = request.form.get("vibe")
         language = request.form.get("language")
@@ -71,75 +49,39 @@ def create():
         if not files or files[0].filename == "":
             return "No images uploaded", 400
 
-        # =========================
-        # RESIZE IMAGES (FIX)
-        # =========================
         processed_images = []
-
         for i, file in enumerate(files):
             path = os.path.join(UPLOAD_FOLDER, file.filename)
             file.save(path)
-
-            img = Image.open(path)
-            img = img.convert("RGB")
-
-            # Resize all images to same size
-            img = img.resize((1280, 720))
-
+            img = Image.open(path).convert("RGB").resize((1280, 720))
             new_path = os.path.join(UPLOAD_FOLDER, f"resized_{i}.jpg")
             img.save(new_path, "JPEG")
-
             processed_images.append(new_path)
 
-        print("Images processed")
-
-        # =========================
-        # STORY
-        # =========================
         story = generate_story(vibe, language)
-        print("Story generated")
 
-        # =========================
-        # VOICE
-        # =========================
         lang_code = "hi" if language == "Hindi" else "en"
         voice_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
-
         tts = gTTS(story, lang=lang_code)
         tts.save(voice_path)
 
-        print("Voice created")
-
-        # =========================
-        # VIDEO
-        # =========================
-        clip = ImageSequenceClip(processed_images, fps=1)
-
-        # =========================
-        # AUDIO
-        # =========================
         voice_audio = AudioFileClip(voice_path)
+        voice_duration = voice_audio.duration
+
+        # Each photo shows for equal time based on voice duration
+        duration_per_image = voice_duration / len(processed_images)
+        clip = ImageSequenceClip(processed_images, durations=[duration_per_image] * len(processed_images))
 
         music_path = get_music(vibe)
         if music_path:
-            music_audio = AudioFileClip(music_path).volumex(0.2)
+            music_audio = AudioFileClip(music_path).volumex(0.2).set_duration(voice_duration)
             final_audio = CompositeAudioClip([voice_audio, music_audio])
         else:
             final_audio = voice_audio
 
-        final_audio = final_audio.set_duration(clip.duration)
-
         video = clip.set_audio(final_audio)
-
         output_path = os.path.join(OUTPUT_FOLDER, "final_video.mp4")
-
-        video.write_videofile(
-            output_path,
-            codec="libx264",
-            audio_codec="aac"
-        )
-
-        print("Video created")
+        video.write_videofile(output_path, codec="libx264", audio_codec="aac")
 
         return send_file(output_path, as_attachment=True)
 
@@ -147,10 +89,6 @@ def create():
         print("FULL ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
-
-# =========================
-# RUN FOR RENDER
-# =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
