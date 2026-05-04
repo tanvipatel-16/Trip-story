@@ -13,7 +13,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
-# 🎯 Generate Story (stable)
+# 🎯 Generate Story
 def generate_story(vibe, language):
     try:
         from openai import OpenAI
@@ -22,7 +22,7 @@ def generate_story(vibe, language):
         if not api_key:
             if language == "Hindi":
                 return "यह एक खूबसूरत यात्रा है जिसमें यादगार पल और शानदार अनुभव शामिल हैं।"
-            return "This is a beautiful journey filled with unforgettable memories and experiences."
+            return "This is a beautiful journey filled with unforgettable memories."
 
         client = OpenAI(api_key=api_key)
 
@@ -68,7 +68,7 @@ def create():
 
         processed_images = []
 
-        # 🖼 Resize images
+        # 🖼 Resize Images
         for i, file in enumerate(files):
             path = os.path.join(UPLOAD_FOLDER, file.filename)
             file.save(path)
@@ -90,23 +90,30 @@ def create():
         tts.save(voice_path)
 
         voice_audio = AudioFileClip(voice_path)
-        voice_duration = voice_audio.duration
 
-        # 🎬 FIXED DURATION
+        # 🎬 VIDEO DURATION FIX
         min_duration = 2
-        duration_per_image = max(min_duration, voice_duration / len(processed_images))
+        duration_per_image = max(min_duration, voice_audio.duration / len(processed_images))
+        video_duration = duration_per_image * len(processed_images)
 
-        # 🎞 SIMPLE (STABLE) VIDEO
+        # 🎞 Create Video
         clip = ImageSequenceClip(
             processed_images,
             durations=[duration_per_image] * len(processed_images)
         )
 
+        # 🎧 Extend voice to match video
+        voice_audio = voice_audio.set_duration(video_duration)
+
         # 🎵 Music
         music_path = get_music(vibe)
 
         if music_path:
-            music_audio = AudioFileClip(music_path).volumex(0.2).set_duration(voice_duration)
+            music_audio = AudioFileClip(music_path).volumex(0.2)
+
+            # loop music to match video length
+            music_audio = music_audio.audio_loop(duration=video_duration)
+
             final_audio = CompositeAudioClip([voice_audio, music_audio])
         else:
             final_audio = voice_audio
