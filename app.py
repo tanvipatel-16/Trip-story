@@ -68,60 +68,54 @@ def index():
 @app.route("/create", methods=["POST"])
 def create():
     try:
+        print("=== REQUEST START ===")
+
         files = request.files.getlist("photos")
         vibe = request.form.get("vibe")
         language = request.form.get("language")
 
-        if not files or len(files) < 1:
-            return jsonify({"error": "No images uploaded"}), 400
+        print("FILES:", files)
+        print("VIBE:", vibe)
+        print("LANGUAGE:", language)
+
+        if not files or files[0].filename == "":
+            return "No files uploaded", 400
 
         image_paths = []
-
         for file in files:
-            path = os.path.join(UPLOAD_FOLDER, file.filename)
+            path = os.path.join("uploads", file.filename)
             file.save(path)
             image_paths.append(path)
 
-        # ✅ Generate story safely
-        story = generate_story(vibe, language)
+        print("Images saved")
 
-        # ✅ Voice generation
-        lang_code = "hi" if language == "Hindi" else "en"
-        voice_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
+        # TEMP TEST (skip OpenAI for now)
+        story = "This is a test story for debugging."
 
-        tts = gTTS(story, lang=lang_code)
+        from gtts import gTTS
+        voice_path = "outputs/voice.mp3"
+        tts = gTTS(story, lang="en")
         tts.save(voice_path)
 
-        # ✅ Create slideshow
+        print("Voice created")
+
+        from moviepy.editor import ImageSequenceClip, AudioFileClip
+
         clip = ImageSequenceClip(image_paths, fps=1).resize(height=720)
 
-        # ✅ Load audio
         voice_audio = AudioFileClip(voice_path)
+        clip = clip.set_audio(voice_audio)
 
-        music_path = get_music(vibe)
-        if music_path:
-            music_audio = AudioFileClip(music_path).volumex(0.2)
-            final_audio = CompositeAudioClip([voice_audio, music_audio])
-        else:
-            final_audio = voice_audio
+        output_path = "outputs/test_video.mp4"
+        clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
 
-        final_audio = final_audio.set_duration(clip.duration)
-
-        video = clip.set_audio(final_audio)
-
-        output_path = os.path.join(OUTPUT_FOLDER, "final_video.mp4")
-
-        video.write_videofile(
-            output_path,
-            codec="libx264",
-            audio_codec="aac"
-        )
+        print("Video created")
 
         return send_file(output_path, as_attachment=True)
 
     except Exception as e:
-        print("ERROR:", str(e))
-        return jsonify({"error": str(e)}), 500
+        print("FULL ERROR:", str(e))
+        return f"Error: {str(e)}", 500
 
 
 # =========================
