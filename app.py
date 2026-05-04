@@ -1,3 +1,7 @@
+# =========================
+# Trip Story AI - FIXED OpenAI Initialization (Render Safe) 🚀
+# =========================
+
 from flask import Flask, render_template, request, send_file
 import os
 from moviepy.editor import ImageSequenceClip, AudioFileClip, CompositeAudioClip
@@ -11,14 +15,19 @@ OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 🔑 Add your OpenAI key in Render ENV
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# =========================
+# ✅ FIX: Initialize OpenAI INSIDE function
+# =========================
 
-# =========================
-# AI STORY GENERATOR
-# =========================
 def generate_story(vibe, language):
-    prompt = f"Create a {vibe} travel story in {language} based on a photo journey. No text labels, only narration."
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not set in environment variables")
+
+    client = OpenAI(api_key=api_key)
+
+    prompt = f"Create a {vibe} travel story in {language}. Make it engaging and emotional. Only narration, no text overlays."
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
@@ -30,6 +39,7 @@ def generate_story(vibe, language):
 # =========================
 # MUSIC SELECTOR
 # =========================
+
 def get_music(vibe):
     return f"static/music/{vibe}.mp3"
 
@@ -54,7 +64,7 @@ def create():
         file.save(path)
         image_paths.append(path)
 
-    # 🔥 AI Story
+    # 🔥 AI Story (SAFE NOW)
     story = generate_story(vibe, language)
 
     # 🔊 Voice
@@ -64,7 +74,7 @@ def create():
     tts.save(voice_path)
 
     # 🎬 Slideshow
-    clip = ImageSequenceClip(image_paths, fps=1)
+    clip = ImageSequenceClip(image_paths, fps=1).resize(height=720)
 
     # 🎵 Audio
     voice_audio = AudioFileClip(voice_path)
@@ -87,6 +97,23 @@ def create():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
+# =========================
+# ✅ WHAT WE FIXED
+# =========================
+# ❌ Before: OpenAI client created at import time → crash if env not ready
+# ✅ Now: Created inside function → safe for Render startup
+#
+# This prevents:
+# - Immediate crash on deploy
+# - Exit status 1 due to missing env
+#
+# =========================
+# NEXT (optional upgrades)
+# =========================
+# - ElevenLabs voice (real human)
+# - AI photo understanding
+# - Smooth transitions
 
 
 
