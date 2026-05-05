@@ -19,9 +19,10 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+# 🔑 OpenAI client
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# 🖼️ FIX IMAGE QUALITY (NO STRETCH)
+# 🖼️ FIX IMAGE QUALITY
 def resize_with_padding(img, target_size=(1280, 720)):
     img.thumbnail(target_size, Image.LANCZOS)
 
@@ -36,7 +37,28 @@ def resize_with_padding(img, target_size=(1280, 720)):
     return new_img
 
 
-# 🧠 STEP 1: AI UNDERSTANDS ALL IMAGES
+# 🔍 SAFE TEXT EXTRACTION (VERY IMPORTANT)
+def extract_text(response):
+    text = ""
+
+    try:
+        if hasattr(response, "output_text") and response.output_text:
+            return response.output_text
+
+        if hasattr(response, "output"):
+            for item in response.output:
+                if hasattr(item, "content"):
+                    for part in item.content:
+                        if hasattr(part, "text"):
+                            text += part.text
+
+    except Exception as e:
+        print("Extraction error:", str(e))
+
+    return text.strip()
+
+
+# 🧠 IMAGE UNDERSTANDING
 def describe_images(image_paths):
     descriptions = []
 
@@ -52,7 +74,7 @@ def describe_images(image_paths):
                     "content": [
                         {
                             "type": "input_text",
-                            "text": "Analyze this travel photo deeply. Describe place, mood, people, lighting, and emotions in 2 sentences."
+                            "text": "Analyze this travel photo deeply. Describe place, mood, people, lighting, and emotions."
                         },
                         {
                             "type": "input_image",
@@ -62,16 +84,24 @@ def describe_images(image_paths):
                 }]
             )
 
-            descriptions.append(f"Image {i+1}: {response.output_text}")
+            text = extract_text(response)
 
-        return "\n".join(descriptions)
+            if not text:
+                text = "A travel moment captured beautifully."
+
+            descriptions.append(f"Image {i+1}: {text}")
+
+        final_text = "\n".join(descriptions)
+        print("IMAGE ANALYSIS:", final_text)
+
+        return final_text
 
     except Exception as e:
         print("Image AI ERROR:", str(e))
         return "A beautiful journey with memorable moments."
 
 
-# ✍️ STEP 2: STRONG STORY GENERATION
+# ✍️ STORY GENERATION
 def generate_story(vibe, language, image_text):
     try:
         prompt = f"""
@@ -83,10 +113,10 @@ Based on these travel moments:
 Create a {vibe} travel story in {language}.
 
 Make it:
-- emotionally engaging
-- vivid and descriptive
+- emotional
+- vivid
 - connected like a journey
-- not generic
+- NOT generic
 
 Minimum 120 words.
 Only narration.
@@ -97,14 +127,21 @@ Only narration.
             input=prompt
         )
 
-        return response.output_text
+        story = extract_text(response)
+
+        if not story:
+            story = "This journey was filled with unforgettable memories, emotions, and beautiful moments."
+
+        print("STORY:", story)
+
+        return story
 
     except Exception as e:
         print("Story ERROR:", str(e))
-        return "A journey full of emotions and unforgettable memories."
+        return "A beautiful journey full of memories."
 
 
-# 🎵 GET MUSIC
+# 🎵 MUSIC
 def get_music(vibe):
     path = f"static/music/{vibe.lower()}.mp3"
     return path if os.path.exists(path) else None
@@ -119,16 +156,21 @@ def index():
 @app.route("/create", methods=["POST"])
 def create():
     try:
+        print("API KEY:", os.environ.get("OPENAI_API_KEY"))
+
         files = request.files.getlist("photos")
         vibe = request.form.get("vibe", "cinematic").lower()
         language = request.form.get("language", "English")
+
+        print("VIBE:", vibe)
+        print("LANGUAGE:", language)
 
         if not files or files[0].filename == "":
             return "No images uploaded", 400
 
         processed_images = []
 
-        # 🖼️ PROCESS IMAGES
+        # 🖼️ IMAGE PROCESSING
         for i, file in enumerate(files):
             path = os.path.join(UPLOAD_FOLDER, f"{i}.jpg")
             file.save(path)
@@ -141,7 +183,7 @@ def create():
 
             processed_images.append(new_path)
 
-        # 🧠 AI UNDERSTANDS IMAGES
+        # 🧠 AI ANALYSIS
         image_text = describe_images(processed_images)
 
         # ✍️ STORY
@@ -157,7 +199,7 @@ def create():
         voice_audio = AudioFileClip(voice_path)
         voice_duration = voice_audio.duration
 
-        # 🎬 VIDEO WITH ZOOM EFFECT
+        # 🎬 VIDEO
         duration_per_image = voice_duration / len(processed_images)
 
         clips = []
@@ -172,7 +214,7 @@ def create():
 
         video = concatenate_videoclips(clips, method="compose")
 
-        # 🎵 MUSIC SYNC
+        # 🎵 AUDIO SYNC
         music_path = get_music(vibe)
 
         if music_path:
