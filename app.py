@@ -1,9 +1,15 @@
 from flask import Flask, render_template, request, send_file, jsonify
 import os
 import base64
-from moviepy.editor import ImageSequenceClip, AudioFileClip, CompositeAudioClip
+from moviepy.editor import (
+    ImageClip,
+    concatenate_videoclips,
+    AudioFileClip,
+    CompositeAudioClip
+)
 from gtts import gTTS
 from PIL import Image
+from openai import OpenAI
 
 app = Flask(__name__)
 
@@ -13,77 +19,94 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# 🧠 STEP 1: Describe images using AI
+# 🖼️ FIX IMAGE QUALITY (NO STRETCH)
+def resize_with_padding(img, target_size=(1280, 720)):
+    img.thumbnail(target_size, Image.LANCZOS)
+
+    new_img = Image.new("RGB", target_size, (0, 0, 0))
+    new_img.paste(
+        img,
+        (
+            (target_size[0] - img.width) // 2,
+            (target_size[1] - img.height) // 2
+        )
+    )
+    return new_img
+
+
+# 🧠 STEP 1: AI UNDERSTANDS ALL IMAGES
 def describe_images(image_paths):
+    descriptions = []
+
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-
-        descriptions = []
-
-        for path in image_paths:
+        for i, path in enumerate(image_paths):
             with open(path, "rb") as img_file:
                 base64_image = base64.b64encode(img_file.read()).decode("utf-8")
 
-            response = client.chat.completions.create(
+            response = client.responses.create(
                 model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "Describe this travel photo in one short sentence."},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
-                                }
-                            }
-                        ]
-                    }
-                ]
+                input=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "Analyze this travel photo deeply. Describe place, mood, people, lighting, and emotions in 2 sentences."
+                        },
+                        {
+                            "type": "input_image",
+                            "image_base64": base64_image
+                        }
+                    ]
+                }]
             )
 
-            descriptions.append(response.choices[0].message.content)
+            descriptions.append(f"Image {i+1}: {response.output_text}")
 
-        return " ".join(descriptions)
+        return "\n".join(descriptions)
 
     except Exception as e:
         print("Image AI ERROR:", str(e))
-        return "A journey with beautiful places and memories."
+        return "A beautiful journey with memorable moments."
 
 
-# 🧠 STEP 2: Generate story from descriptions
+# ✍️ STEP 2: STRONG STORY GENERATION
 def generate_story(vibe, language, image_text):
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-
         prompt = f"""
-        Based on these travel photo descriptions:
-        {image_text}
+You are a cinematic storyteller.
 
-        Create a {vibe} travel story in {language}.
-        Make it emotional and engaging.
-        Minimum 120 words.
-        Only narration.
-        """
+Based on these travel moments:
+{image_text}
 
-        response = client.chat.completions.create(
+Create a {vibe} travel story in {language}.
+
+Make it:
+- emotionally engaging
+- vivid and descriptive
+- connected like a journey
+- not generic
+
+Minimum 120 words.
+Only narration.
+"""
+
+        response = client.responses.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
+            input=prompt
         )
 
-        return response.choices[0].message.content
+        return response.output_text
 
     except Exception as e:
         print("Story ERROR:", str(e))
-        return "A journey full of memories and emotions."
+        return "A journey full of emotions and unforgettable memories."
 
 
-# 🎵 Music
+# 🎵 GET MUSIC
 def get_music(vibe):
-    path = f"static/music/{vibe}.mp3"
+    path = f"static/music/{vibe.lower()}.mp3"
     return path if os.path.exists(path) else None
 
 
@@ -97,59 +120,72 @@ def index():
 def create():
     try:
         files = request.files.getlist("photos")
-        vibe = request.form.get("vibe")
-        language = request.form.get("language")
+        vibe = request.form.get("vibe", "cinematic").lower()
+        language = request.form.get("language", "English")
 
         if not files or files[0].filename == "":
             return "No images uploaded", 400
 
         processed_images = []
 
-        # 🖼 Resize images
+        # 🖼️ PROCESS IMAGES
         for i, file in enumerate(files):
-            path = os.path.join(UPLOAD_FOLDER, file.filename)
+            path = os.path.join(UPLOAD_FOLDER, f"{i}.jpg")
             file.save(path)
 
-            img = Image.open(path).convert("RGB").resize((1280, 720))
+            img = Image.open(path).convert("RGB")
+            img = resize_with_padding(img)
+
             new_path = os.path.join(UPLOAD_FOLDER, f"resized_{i}.jpg")
-            img.save(new_path, "JPEG")
+            img.save(new_path, "JPEG", quality=95)
 
             processed_images.append(new_path)
 
-        # 🧠 AI understands images
+        # 🧠 AI UNDERSTANDS IMAGES
         image_text = describe_images(processed_images)
 
-        # ✍️ AI creates story
+        # ✍️ STORY
         story = generate_story(vibe, language, image_text)
 
-        # 🗣 Voice
-        lang_code = "hi" if language == "Hindi" else "en"
+        # 🗣️ VOICE
+        lang_code = "hi" if language.lower() == "hindi" else "en"
         voice_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
 
-        tts = gTTS(story, lang=lang_code)
+        tts = gTTS(text=story, lang=lang_code, slow=False)
         tts.save(voice_path)
 
         voice_audio = AudioFileClip(voice_path)
         voice_duration = voice_audio.duration
 
-        # 🎬 VIDEO = MATCH VOICE (NO CRASH)
+        # 🎬 VIDEO WITH ZOOM EFFECT
         duration_per_image = voice_duration / len(processed_images)
 
-        clip = ImageSequenceClip(
-            processed_images,
-            durations=[duration_per_image] * len(processed_images)
-        )
+        clips = []
+        for img_path in processed_images:
+            clip = (
+                ImageClip(img_path)
+                .set_duration(duration_per_image)
+                .resize(lambda t: 1 + 0.05 * t)  # zoom effect
+                .set_position("center")
+            )
+            clips.append(clip)
 
-        # 🎵 Music
+        video = concatenate_videoclips(clips, method="compose")
+
+        # 🎵 MUSIC SYNC
         music_path = get_music(vibe)
 
         if music_path:
-            music_audio = AudioFileClip(music_path).volumex(0.2).set_duration(voice_duration)
+            music_audio = (
+                AudioFileClip(music_path)
+                .volumex(0.15)
+                .audio_loop(duration=voice_duration)
+            )
             final_audio = CompositeAudioClip([voice_audio, music_audio])
         else:
             final_audio = voice_audio
 
-        video = clip.set_audio(final_audio)
+        video = video.set_audio(final_audio)
 
         output_path = os.path.join(OUTPUT_FOLDER, "final_video.mp4")
 
@@ -157,7 +193,8 @@ def create():
             output_path,
             fps=24,
             codec="libx264",
-            audio_codec="aac"
+            audio_codec="aac",
+            preset="ultrafast"
         )
 
         return send_file(output_path, as_attachment=True)
