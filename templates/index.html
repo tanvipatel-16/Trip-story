@@ -1,31 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AI Story Generator</title>
+    <title>Trip Story AI</title>
 
     <style>
         body {
+            font-family: Arial;
+            background: #0f0f0f;
+            color: white;
             text-align: center;
             margin-top: 50px;
         }
 
+        .card {
+            background: #1e1e1e;
+            padding: 30px;
+            border-radius: 15px;
+            width: 350px;
+            margin: auto;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+
+        input {
+            margin: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            background: #ff4d6d;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
         video {
-            width: 400px;
+            width: 100%;
+            margin-top: 15px;
             display: none;
+            border-radius: 10px;
         }
     </style>
 </head>
+
 <body>
 
-<h2>Upload Images</h2>
+<div class="card">
+    <h2>🎬 Trip Story Generator</h2>
 
-<form id="form">
-    <input type="file" name="images" multiple required>
-    <button type="submit">Generate Video</button>
-</form>
+    <form id="form">
+        <input type="file" name="images" multiple required>
+        <br>
+        <button type="submit">Create Story</button>
+    </form>
 
-<h3 id="status"></h3>
-<video id="video" controls></video>
+    <p id="status"></p>
+
+    <video id="video" controls></video>
+</div>
 
 <script>
 document.getElementById("form").onsubmit = async (e) => {
@@ -38,6 +70,11 @@ document.getElementById("form").onsubmit = async (e) => {
         method: "POST",
         body: formData
     });
+
+    if (!res.ok) {
+        document.getElementById("status").innerText = "Error generating video";
+        return;
+    }
 
     let blob = await res.blob();
     let url = URL.createObjectURL(blob);
