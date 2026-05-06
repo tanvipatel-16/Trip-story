@@ -34,7 +34,6 @@ def generate():
     if not image_paths:
         return {"error": "No images uploaded"}, 400
 
-    # English stories
     english_stories = {
         "funny": "What a hilarious adventure! Every moment was packed with laughter, surprises, and unforgettable comedy. From getting lost to finding the best food, this trip was truly one for the books!",
         "emotional": "This journey touched the deepest corners of the heart. Every photo holds a memory, every smile tells a story of love, warmth and belonging. These moments will stay forever.",
@@ -42,7 +41,6 @@ def generate():
         "cinematic": "The world opened up in all its glory. Sweeping landscapes, golden light, and the quiet magic of travel wove together into a story worth telling forever."
     }
 
-    # Hindi stories
     hindi_stories = {
         "funny": "क्या मज़ेदार सफर था! हर पल हँसी और मस्ती से भरा हुआ था। रास्ता भटकना, अजीब खाना खाना, और नई जगहें खोजना — यह यात्रा सच में यादगार रही।",
         "emotional": "यह सफर दिल की गहराइयों को छू गया। हर तस्वीर में एक याद है, हर मुस्कान में एक कहानी है। प्यार, अपनापन और खूबसूरत पलों से भरी यह यात्रा हमेशा याद रहेगी।",
@@ -50,7 +48,6 @@ def generate():
         "cinematic": "दुनिया अपनी पूरी भव्यता के साथ सामने आई। विशाल परिदृश्य, सुनहरी रोशनी, और यात्रा का जादू मिलकर एक ऐसी कहानी बन गए जो हमेशा याद रहेगी।"
     }
 
-    # Select story based on language
     if language == "hi":
         story = hindi_stories.get(vibe, hindi_stories["cinematic"])
         lang_code = "hi"
@@ -58,12 +55,10 @@ def generate():
         story = english_stories.get(vibe, english_stories["cinematic"])
         lang_code = "en"
 
-    # Generate voiceover
     tts = gTTS(story, lang=lang_code)
     audio_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
     tts.save(audio_path)
 
-    # Create video clips
     clips = []
     for img in image_paths:
         clip = ImageClip(img).with_duration(3).resized(height=720)
