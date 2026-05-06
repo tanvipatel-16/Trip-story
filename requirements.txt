@@ -1,5 +1,7 @@
 flask
-moviepy==1.0.3
+gunicorn
 gtts
-pillow
-openai
+moviepy
+werkzeug
+imageio
+imageio-ffmpeg
