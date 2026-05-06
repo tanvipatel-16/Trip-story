@@ -1,7 +1,8 @@
+```python
 from flask import Flask, render_template, request, send_file
 import os
 from gtts import gTTS
-from moviepy.editor import *
+from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -21,18 +22,19 @@ def generate():
     files = request.files.getlist("images")
 
     if not files:
-        return "No images uploaded", 400
+        return "No files uploaded", 400
 
     image_paths = []
 
+    # Save images
     for file in files:
         filename = secure_filename(file.filename)
         path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(path)
         image_paths.append(path)
 
-    # Simple story (we'll upgrade later)
-    story = "This was a beautiful journey full of memories and emotions."
+    # Story
+    story = "This was a beautiful journey full of memories, emotions and unforgettable moments."
 
     # Voice
     audio_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
@@ -53,7 +55,11 @@ def generate():
     output_path = os.path.join(OUTPUT_FOLDER, "final.mp4")
     final_video.write_videofile(output_path, fps=24)
 
-    return send_file(output_path, mimetype="video/mp4")
+    return send_file(output_path, mimetype="video/mp4", as_attachment=False)
 
+
+# ✅ IMPORTANT FOR RENDER
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+```
