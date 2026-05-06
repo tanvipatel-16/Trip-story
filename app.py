@@ -1,15 +1,13 @@
 from flask import Flask, render_template, request, send_file, jsonify
 import os
 import base64
-from moviepy.editor import (
-    ImageClip,
-    concatenate_videoclips,
-    AudioFileClip,
-    CompositeAudioClip
-)
+from moviepy.editor import ImageSequenceClip, AudioFileClip, CompositeAudioClip
 from gtts import gTTS
 from PIL import Image
-from openai import OpenAI
+import imageio_ffmpeg
+
+# ✅ Force FFmpeg path
+os.environ["IMAGEIO_FFMPEG_EXE"] = imageio_ffmpeg.get_ffmpeg_exe()
 
 app = Flask(__name__)
 
@@ -19,129 +17,74 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 🔑 OpenAI client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# 🖼️ FIX IMAGE QUALITY
-def resize_with_padding(img, target_size=(1280, 720)):
-    img.thumbnail(target_size, Image.LANCZOS)
-
-    new_img = Image.new("RGB", target_size, (0, 0, 0))
-    new_img.paste(
-        img,
-        (
-            (target_size[0] - img.width) // 2,
-            (target_size[1] - img.height) // 2
-        )
-    )
-    return new_img
-
-
-# 🔍 SAFE TEXT EXTRACTION (VERY IMPORTANT)
-def extract_text(response):
-    text = ""
-
-    try:
-        if hasattr(response, "output_text") and response.output_text:
-            return response.output_text
-
-        if hasattr(response, "output"):
-            for item in response.output:
-                if hasattr(item, "content"):
-                    for part in item.content:
-                        if hasattr(part, "text"):
-                            text += part.text
-
-    except Exception as e:
-        print("Extraction error:", str(e))
-
-    return text.strip()
-
-
-# 🧠 IMAGE UNDERSTANDING
+# 🧠 STEP 1: Describe images
 def describe_images(image_paths):
-    descriptions = []
-
     try:
-        for i, path in enumerate(image_paths):
+        from openai import OpenAI
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+        descriptions = []
+
+        for path in image_paths:
             with open(path, "rb") as img_file:
                 base64_image = base64.b64encode(img_file.read()).decode("utf-8")
 
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model="gpt-4o-mini",
-                input=[{
+                messages=[{
                     "role": "user",
                     "content": [
+                        {"type": "text", "text": "Describe this travel photo in a vivid, emotional sentence."},
                         {
-                            "type": "input_text",
-                            "text": "Analyze this travel photo deeply. Describe place, mood, people, lighting, and emotions."
-                        },
-                        {
-                            "type": "input_image",
-                            "image_base64": base64_image
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
                         }
                     ]
                 }]
             )
 
-            text = extract_text(response)
+            text = response.choices[0].message.content
+            if text:
+                descriptions.append(text)
 
-            if not text:
-                text = "A travel moment captured beautifully."
-
-            descriptions.append(f"Image {i+1}: {text}")
-
-        final_text = "\n".join(descriptions)
-        print("IMAGE ANALYSIS:", final_text)
-
-        return final_text
+        return " ".join(descriptions) if descriptions else "A beautiful travel journey."
 
     except Exception as e:
-        print("Image AI ERROR:", str(e))
-        return "A beautiful journey with memorable moments."
+        print("❌ Image AI ERROR:", str(e))
+        return "A beautiful travel journey."
 
 
-# ✍️ STORY GENERATION
+# 🧠 STEP 2: Story generation
 def generate_story(vibe, language, image_text):
     try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
         prompt = f"""
-You are a cinematic storyteller.
+        Create a {vibe} travel story in {language}.
 
-Based on these travel moments:
-{image_text}
+        Based on:
+        {image_text}
 
-Create a {vibe} travel story in {language}.
+        Make it emotional, engaging, and cinematic.
+        Minimum 120 words.
+        """
 
-Make it:
-- emotional
-- vivid
-- connected like a journey
-- NOT generic
-
-Minimum 120 words.
-Only narration.
-"""
-
-        response = client.responses.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
-            input=prompt
+            messages=[{"role": "user", "content": prompt}]
         )
 
-        story = extract_text(response)
-
-        if not story:
-            story = "This journey was filled with unforgettable memories, emotions, and beautiful moments."
-
-        print("STORY:", story)
-
-        return story
+        story = response.choices[0].message.content
+        return story if story else "A beautiful journey."
 
     except Exception as e:
-        print("Story ERROR:", str(e))
-        return "A beautiful journey full of memories."
+        print("❌ Story ERROR:", str(e))
+        return "A beautiful journey."
 
 
-# 🎵 MUSIC
+# 🎵 Music
 def get_music(vibe):
     path = f"static/music/{vibe.lower()}.mp3"
     return path if os.path.exists(path) else None
@@ -155,94 +98,92 @@ def index():
 # 🎬 MAIN ROUTE
 @app.route("/create", methods=["POST"])
 def create():
-    try:
-        print("API KEY:", os.environ.get("OPENAI_API_KEY"))
+    print("🔥 CREATE API HIT")
 
+    try:
         files = request.files.getlist("photos")
-        vibe = request.form.get("vibe", "cinematic").lower()
+        vibe = request.form.get("vibe", "cinematic")
         language = request.form.get("language", "English")
 
+        print("FILES:", len(files))
         print("VIBE:", vibe)
-        print("LANGUAGE:", language)
+        print("LANG:", language)
 
         if not files or files[0].filename == "":
             return "No images uploaded", 400
 
         processed_images = []
 
-        # 🖼️ IMAGE PROCESSING
+        # 🖼 Process images (NO stretching)
         for i, file in enumerate(files):
-            path = os.path.join(UPLOAD_FOLDER, f"{i}.jpg")
+            path = os.path.join(UPLOAD_FOLDER, f"img_{i}.jpg")
             file.save(path)
 
             img = Image.open(path).convert("RGB")
-            img = resize_with_padding(img)
+            img.thumbnail((1280, 720))  # ✅ keeps aspect ratio
 
             new_path = os.path.join(UPLOAD_FOLDER, f"resized_{i}.jpg")
-            img.save(new_path, "JPEG", quality=95)
+            img.save(new_path, "JPEG")
 
             processed_images.append(new_path)
 
-        # 🧠 AI ANALYSIS
+        print("✅ Images processed")
+
+        # 🧠 AI
         image_text = describe_images(processed_images)
+        print("🧠 Image text:", image_text)
 
-        # ✍️ STORY
         story = generate_story(vibe, language, image_text)
+        print("✍️ Story:", story[:100])
 
-        # 🗣️ VOICE
-        lang_code = "hi" if language.lower() == "hindi" else "en"
+        # 🗣 Voice
+        lang_code = "hi" if "Hindi" in language else "en"
         voice_path = os.path.join(OUTPUT_FOLDER, "voice.mp3")
 
-        tts = gTTS(text=story, lang=lang_code, slow=False)
+        tts = gTTS(story, lang=lang_code)
         tts.save(voice_path)
 
         voice_audio = AudioFileClip(voice_path)
         voice_duration = voice_audio.duration
 
-        # 🎬 VIDEO
+        print("🎙 Voice duration:", voice_duration)
+
+        # 🎬 Video
         duration_per_image = voice_duration / len(processed_images)
 
-        clips = []
-        for img_path in processed_images:
-            clip = (
-                ImageClip(img_path)
-                .set_duration(duration_per_image)
-                .resize(lambda t: 1 + 0.05 * t)  # zoom effect
-                .set_position("center")
-            )
-            clips.append(clip)
+        clip = ImageSequenceClip(
+            processed_images,
+            durations=[duration_per_image] * len(processed_images)
+        )
 
-        video = concatenate_videoclips(clips, method="compose")
-
-        # 🎵 AUDIO SYNC
+        # 🎵 Music
         music_path = get_music(vibe)
 
         if music_path:
-            music_audio = (
-                AudioFileClip(music_path)
-                .volumex(0.15)
-                .audio_loop(duration=voice_duration)
-            )
+            music_audio = AudioFileClip(music_path).volumex(0.2).set_duration(voice_duration)
             final_audio = CompositeAudioClip([voice_audio, music_audio])
         else:
             final_audio = voice_audio
 
-        video = video.set_audio(final_audio)
+        video = clip.set_audio(final_audio)
 
         output_path = os.path.join(OUTPUT_FOLDER, "final_video.mp4")
+
+        print("🎬 Rendering video...")
 
         video.write_videofile(
             output_path,
             fps=24,
             codec="libx264",
-            audio_codec="aac",
-            preset="ultrafast"
+            audio_codec="aac"
         )
+
+        print("✅ VIDEO CREATED:", output_path)
 
         return send_file(output_path, as_attachment=True)
 
     except Exception as e:
-        print("FULL ERROR:", str(e))
+        print("❌ FULL ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
 
