@@ -1,9 +1,10 @@
 flask
-gunicorn
 gtts
-moviepy
-werkzeug
+moviepy==1.0.3
 imageio
 imageio-ffmpeg
-pillow
 numpy
+pillow==9.5.0
+werkzeug
+gunicorn
+decorator==4.4.2
