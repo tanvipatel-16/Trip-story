@@ -2,7 +2,7 @@
 from flask import Flask, render_template, request, send_file
 import os
 from gtts import gTTS
-from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
+from moviepy import ImageClip, concatenate_videoclips, AudioFileClip
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
