@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, send_file
 import os
 from gtts import gTTS
-from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, CompositeAudioClip
+from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeAudioClip
 from werkzeug.utils import secure_filename
 import urllib.request
 
@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
-MUSIC_FOLDER = "music"
+MUSIC_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs(MUSIC_FOLDER, exist_ok=True)
@@ -55,115 +55,135 @@ def generate():
         return {"error": "No images uploaded"}, 400
 
     english_stories = {
-        "funny": (
-            "Oh my God, where do I even begin?! This trip was an absolute DISASTER — and I mean that in the best possible way! "
-            "First, we got completely lost trying to find the hotel. GPS said turn left, we turned left, and ended up in someone's backyard. "
-            "Then at the restaurant, I ordered something I couldn't even pronounce and ended up with a plate of... honestly, I still don't know what it was. "
-            "But I ATE it. Every. Single. Bite. Because that's what travelers do! "
-            "We missed buses, got rained on, sunburned in places that should NEVER be sunburned, "
-            "and somehow, SOMEHOW — it became the greatest story I will ever tell. "
-            "Every disaster, every wrong turn, every awkward moment — it all became pure gold. "
-            "Because at the end of the day, the best memories aren't the perfect ones. They're the ones that make you laugh until you cry. "
-            "And oh boy, did we laugh. We laughed so hard. This trip? Absolutely unhinged. Ten out of ten. Would do it again tomorrow."
+       "funny": (
+            "This trip was literally just bad decisions and good outfits. "
+            "We started the journey acting like main characters and ended it fighting for one power bank. "
+            "Nobody knew the plan. Nobody booked properly. But the confidence? Astronomical. "
+            "We spent more time taking aesthetic photos than actually enjoying the place. "
+            "At one point we walked 20 minutes just to click one Instagram story and honestly… worth it. "
+            "One friend kept saying 'trust the process' while actively making the situation worse. "
+            "The hotel looked NOTHING like the pictures. Like actually nothing. "
+            "Our budget disappeared on iced coffee and unnecessary snacks within the first two hours. "
+            "Somehow we were tired, broke, dehydrated, slightly sunburnt, and still saying — "
+            "'Wait wait, one more photo.' "
+            "And despite the chaos, the confusion, and the almost criminal level of bad planning… "
+            "this trip absolutely ate."
         ),
         "emotional": (
-            "There are places that change you. Not slowly, not quietly — but all at once, like a wave you never saw coming. "
-            "This journey was one of those places. "
-            "I remember standing there, looking out at the horizon, and feeling something I hadn't felt in a very long time — peace. "
-            "Real, deep, soul-level peace. Like the world had pressed pause just for me. "
-            "Every photograph here holds a story. A moment where laughter and tears lived in the same breath. "
-            "Where strangers became family and home felt a thousand miles away — and yet, somehow, everywhere. "
-            "I thought about everyone I love. Everyone who couldn't be there. And I wished so deeply that they could see what I was seeing. "
-            "Because some things are too beautiful to keep to yourself. "
-            "This trip reminded me why we travel. Not to escape life — but to find it. To feel it fully. "
-            "I will carry these memories forever. Long after the photos fade. Long after the words run out. "
-            "This journey lives in my heart now. And it always will."
+            "I didn’t expect this trip to heal something in me, but somehow it did. "
+            "For a little while, life felt slower. Quieter. Easier to breathe in. "
+            "No deadlines, no overthinking, no pretending everything was fine. "
+            "Just sunsets, long conversations, random laughter, and moments I wish I could pause forever. "
+            "It’s strange how people can go from strangers to feeling like home so quickly. "
+            "Somewhere between the late-night talks, blurry photos, and tired walks back to the hotel… "
+            "these memories became something bigger than just a trip. "
+            "We were all dealing with our own things, even if nobody said it out loud. "
+            "But for those few days, nothing really mattered except being there together. "
+            "And honestly? I think that’s what made it special. "
+            "Not the places. Not the pictures. "
+            "Just the feeling of being alive at the right moment with the right people. "
+            "Some memories don’t fade after a trip ends. "
+            "They stay with you quietly, like a song you never stop replaying."
         ),
         "dramatic": (
-            "They said it couldn't be done. They said the roads were too rough, the weather too unpredictable, the journey too long. "
-            "They were right. And we went anyway. "
-            "Every mile was a battle. Every summit, a victory claimed with burning legs and trembling hands. "
-            "The wind did not stop. The rain did not stop. And neither did we. "
-            "There were moments — dark moments — where doubt crept in like fog over a mountain pass. "
-            "Where every rational thought screamed: turn back. Go home. This is madness. "
-            "But something deeper whispered: keep going. You did not come this far to only come this far. "
-            "And so we pushed. Through exhaustion. Through uncertainty. Through every obstacle the universe threw at us. "
-            "And then — the moment. THE moment. When everything else fell away and all that remained was raw, pure, unfiltered triumph. "
-            "We stood there. Breathless. Changed forever. "
-            "Because the greatest journeys are never comfortable. They are meant to break you open and rebuild you stronger. "
-            "This was not just a trip. This was a reckoning. And we survived it. Every glorious, brutal, beautiful second of it."
+            "This trip felt less like a vacation and more like a survival challenge with cinematic lighting. "
+            "Every five minutes something went wrong, but somehow the chaos just kept getting funnier. "
+            "We missed buses, lost directions, ignored warning signs, and still walked around like we owned the city. "
+            "At one point our entire plan depended on one person saying, 'Bro trust me,' which is honestly terrifying. "
+            "The weather switched moods faster than our group chat. "
+            "One second we were taking aesthetic sunset photos, next second we were running for our lives in the rain. "
+            "Nobody slept properly. Nobody drank enough water. But the confidence levels? Absolutely dangerous. "
+            "We climbed things we probably shouldn’t have climbed, ate things we definitely couldn’t pronounce, "
+            "and made memories that honestly sound fake when we retell them. "
+            "Everything about this trip was loud, chaotic, dramatic, and completely unhinged. "
+            "And somehow… that’s exactly what made it legendary."
         ),
         "cinematic": (
-            "Roll camera. "
-            "The light hits differently when you are somewhere new. Golden and heavy and full of promise. "
-            "Every frame of this journey looked like something out of a film you have seen in a dream — "
-            "wide open roads stretching toward nothing and everything, ancient streets alive with sound and color, "
-            "skies so vast they made you feel small in the best possible way. "
-            "We moved through this place like characters in a story we had not written yet. "
-            "Every turn, a new scene. Every conversation, a new chapter. "
-            "The locals who smiled and pointed us in the right direction. The hidden cafes with the best coffee on earth. "
-            "The sunsets that made everyone go quiet because some things are beyond words. "
-            "This is what travel does. It turns ordinary days into extraordinary cinema. "
-            "Somewhere in these photographs — in the light, in the faces, in the quiet spaces between moments — "
-            "a story was born. A real one. The kind that stays with you. "
-            "Cut to black. Roll credits. But for us — the adventure never really ends."
-        )
+            "This trip genuinely felt like living inside a movie nobody wanted to end. "
+            "The kind where the lighting is perfect for no reason and every random moment somehow becomes a core memory. "
+            "Late-night drives, blurry city lights, overpriced coffee, sunsets that didn’t even look real — "
+            "everything felt weirdly cinematic. "
+            "We kept saying 'this feels fake' every five minutes because honestly… it did. "
+            "There were moments where nobody spoke, and somehow those became the loudest memories. "
+            "Just music playing, windows down, everyone tired but secretly not wanting the day to end. "
+            "We took hundreds of photos trying to capture the vibe, but none of them fully explained how it actually felt to be there. "
+            "And maybe that’s the beautiful part. "
+            "Some memories aren’t meant to be perfectly captured. "
+            "They’re meant to be felt. "
+            "And this trip? "
+            "Yeah… this one felt like cinema."
+        ),
     }
 
     hindi_stories = {
         "funny": (
-            "यार, कहाँ से शुरू करूँ?! यह ट्रिप एक पूरा तमाशा था — लेकिन सबसे बेस्ट तमाशा! "
-            "पहले दिन ही हम होटल ढूंढते-ढूंढते किसी के घर के अंदर घुस गए। Google Maps ने धोखा दिया, बिल्कुल! "
-            "खाना ऑर्डर किया तो कुछ ऐसा आया जिसे देखकर हम सब बस एक-दूसरे का मुँह देखते रह गए। "
-            "खाया? हाँ खाया! क्योंकि हम traveler हैं और traveler डरते नहीं! "
-            "बस छूटी, बारिश में भीगे, धूप में जले, रास्ता भटके — "
-            "और इन सबके बीच जो हँसी आई, वो हँसी जिंदगी भर याद रहेगी। "
-            "हर गलती एक किस्सा बन गई। हर मुसीबत एक याद बन गई। "
-            "क्योंकि सच में — सबसे अच्छी यादें वो नहीं होतीं जो perfect होती हैं। "
-            "सबसे अच्छी यादें वो होती हैं जिन पर बाद में पेट पकड़ के हँसते हैं। "
-            "यह ट्रिप? बिल्कुल पागलपन। दस में से दस। कल फिर जाना है।"
+             "ये trip literally proof थी कि हम सब 'it is what it is' mentality पर survive कर रहे हैं। "
+             "Planning zero थी, confidence unlimited था। "
+             "हम घर से निकले थे Pinterest travel aesthetic बनकर… "
+             "और वापस आए low battery, no money, emotionally unstable humans बनकर। "
+             "एक दोस्त पूरे trip में बस यही बोल रहा था — "
+             "'Guys trust me, I know a shortcut.' "
+             "भाई उसके shortcut ने हमें Narnia पहुँचा दिया था। "
+             "हमने इतनी photos लीं कि phone storage ने खुद give up कर दिया। "
+             "और end में upload वही blurry dump हुई जिसमें कोई properly दिख भी नहीं रहा। "
+             "Budget का तो पूरा 'womp womp' हो गया overpriced coffee और random snacks में। "
+             "एक point पर हम सब इतने tired थे कि AC वाली जगह देखकर spiritual happiness मिल रही थी। "
+             "लेकिन जैसे ही कहीं aesthetic lights दिखीं — "
+             "suddenly everyone became a content creator again. "
+             "कोई पानी नहीं पी रहा था, कोई map नहीं देख रहा था, "
+             "लेकिन सब बोल रहे थे — "
+             "'Wait wait candid ले.' "
+            "Honestly पूरा trip chaotic था, unserious था, और borderline nonsense था… "
+            "but lowkey? "
+             "It absolutely slapped."
         ),
         "emotional": (
-            "कुछ जगहें होती हैं जो आपको बदल देती हैं। चुपके से नहीं — एक झटके में। "
-            "यह सफर उन्हीं जगहों में से एक था। "
-            "जब मैं वहाँ खड़ा था, दूर क्षितिज को देखते हुए, तो मन में एक अजीब सी शांति उतर आई। "
-            "जैसे दुनिया ने एक पल के लिए रुककर सिर्फ मुझसे बात की हो। "
-            "इन तस्वीरों में सिर्फ जगहें नहीं हैं — इनमें वो लम्हे हैं जब हँसी और आँसू एक साथ आए। "
-            "जब अजनबी यार बन गए और घर बहुत दूर था — फिर भी हर जगह घर जैसा लगा। "
-            "मैंने उन सबके बारे में सोचा जिन्हें मैं चाहता हूँ। जो वहाँ नहीं थे। "
-            "काश वो भी देख पाते — क्योंकि कुछ खूबसूरतियाँ अकेले सहना बहुत मुश्किल होता है। "
-            "यह सफर याद दिलाता है कि हम travel क्यों करते हैं। जिंदगी से भागने के लिए नहीं — बल्कि जिंदगी को पूरी तरह जीने के लिए। "
-            "ये यादें हमेशा मेरे साथ रहेंगी। तस्वीरें फीकी पड़ जाएँ, शब्द खत्म हो जाएँ — "
-            "लेकिन यह सफर मेरे दिल में हमेशा जिंदा रहेगा।"
+           "सच कहूँ तो मुझे नहीं लगा था कि ये trip मुझे अंदर से इतना change कर देगा। "
+           "कुछ दिनों के लिए life थोड़ी slow लगने लगी थी। "
+           "ना stress, ना overthinking, ना वो fake smile जो रोज़ पहननी पड़ती है। "
+           "बस sunsets, late-night talks, random हँसी, और वो moments जिन्हें दिल हमेशा के लिए save कर लेना चाहता है। "
+           "अजीब है ना… कैसे कुछ लोग इतनी जल्दी strangers से home जैसा feel होने लगते हैं। "
+           "शायद इसी लिए ये सिर्फ एक trip नहीं लगा। "
+           "ये उन rare moments में से था जहाँ सब कुछ सही feel हो रहा था। "
+           "हम सब अपनी-अपनी problems लेकर आए थे, "
+           "लेकिन उन कुछ दिनों के लिए ऐसा लगा जैसे दुनिया ने pause ले लिया हो। "
+           "और honestly… शायद यही इस trip की सबसे खूबसूरत बात थी। "
+           "ना जगहें special थीं, ना photos perfect थीं। "
+           "Special था बस वो feeling… सही लोगों के साथ सही moment में होने की। "
+           "कुछ memories trip खत्म होने के बाद भी खत्म नहीं होतीं। "
+           "वो quietly हमेशा दिल में चलती रहती हैं… किसी favorite song की तरह।"
         ),
         "dramatic": (
-            "लोगों ने कहा — मत जाओ। रास्ता मुश्किल है। मौसम खराब है। यह संभव नहीं। "
-            "हम फिर भी गए। "
-            "हर कदम एक जंग था। हर चोटी एक जीत जो जलते पैरों और कांपते हाथों से छीनी। "
-            "हवा नहीं रुकी। बारिश नहीं रुकी। और हम भी नहीं रुके। "
-            "ऐसे पल आए जब मन ने कहा — वापस चलो। यह पागलपन है। यह नासमझी है। "
-            "लेकिन दिल की किसी गहरी आवाज़ ने कहा — बस एक और कदम। "
-            "तुम इतनी दूर आए हो — सिर्फ यहाँ रुकने के लिए नहीं। "
-            "और हम बढ़ते रहे। थकान के बावजूद। अंधेरे के बावजूद। हर रुकावट के बावजूद। "
-            "और फिर वो पल आया — वो एक पल — जब सब कुछ थम गया। "
-            "सिर्फ हम थे। और वो अहसास था जो शब्दों में नहीं समाता। "
-            "क्योंकि सबसे बड़े सफर आरामदायक नहीं होते। वो तोड़ते हैं — और फिर नए सिरे से जोड़ते हैं। "
-            "यह सिर्फ एक यात्रा नहीं थी। यह एक परीक्षा थी। और हम पास हुए।"
+            "यह ट्रिप vacation कम और full-on survival movie ज़्यादा लग रही थी। "
+            "हर थोड़ी देर में कुछ ना कुछ गलत हो रहा था, लेकिन chaos इतना funny था कि हँसी रुक ही नहीं रही थी। "
+            "कभी बस miss हुई, कभी रास्ता गलत निकला, कभी किसी ने confidence के साथ completely गलत direction दे दी। "
+            "और सबसे dangerous line थी — 'भाई trust me.' "
+            "मौसम भी हमारे group chat की तरह हर पाँच मिनट में mood बदल रहा था। "
+            "एक moment हम aesthetic sunset photos ले रहे थे, अगले ही second बारिश से जान बचाकर भाग रहे थे। "
+            "ना ठीक से नींद मिली, ना पानी पिया, लेकिन confidence level फिर भी peak पर था। "
+            "हम ऐसी जगह चढ़ गए जहाँ शायद नहीं चढ़ना चाहिए था, "
+            "ऐसी चीज़ें खा लीं जिनका नाम तक pronounce नहीं हो रहा था, "
+            "और ऐसी memories बना लीं जो बाद में सुनाने पर fake लगती हैं। "
+            "पूरा trip loud था, messy था, dramatic था, और honestly थोड़ा unhinged भी। "
+            "लेकिन शायद यही reason है कि ये इतना legendary बन गया।"
         ),
         "cinematic": (
-            "कैमरा चलाइए। "
-            "रोशनी अलग होती है जब आप किसी नई जगह होते हैं। सुनहरी, भारी, उम्मीदों से भरी। "
-            "इस सफर का हर फ्रेम किसी फिल्म के दृश्य जैसा था — "
-            "खुली सड़कें जो अनंत की तरफ जाती हैं, पुरानी गलियाँ जो जीवन से भरी हैं, "
-            "ऐसे आसमान जो इतने विशाल थे कि खुद छोटे लगने लगे — और यह अच्छा लगा। "
-            "हम इस जगह में ऐसे चले जैसे किसी अनलिखी कहानी के किरदार। "
-            "हर मोड़ एक नया दृश्य। हर बातचीत एक नया अध्याय। "
-            "वो सूर्यास्त जिसे देखकर सब चुप हो गए — क्योंकि कुछ चीज़ें शब्दों से परे होती हैं। "
-            "यही है travel का जादू। यह आपकी साधारण जिंदगी को असाधारण सिनेमा बना देता है। "
-            "इन तस्वीरों में — रोशनी में, चेहरों में, लम्हों के बीच की खामोशी में — "
-            "एक कहानी जन्म लेती है। असली कहानी। जो रहती है। "
-            "कट टु ब्लैक। लेकिन हमारा सफर? वो कभी खत्म नहीं होता।"
-        )
+            "यह ट्रिप सच में किसी ऐसी फिल्म जैसा लगा जिसे कोई खत्म ही नहीं करना चाहता। "
+            "वो वाली फिल्म जहाँ बिना वजह हर चीज़ cinematic लगती है और हर छोटा पल एक core memory बन जाता है। "
+            "Late night drives, धुंधली city lights, overpriced coffee, और ऐसे sunsets जो unreal लग रहे थे — "
+            "सब कुछ किसी movie scene जैसा feel हो रहा था। "
+            "हर पाँच मिनट में हम बस यही बोल रहे थे — 'भाई ये सब इतना fake क्यों लग रहा है?' "
+            "कुछ moments ऐसे भी थे जहाँ कोई कुछ बोल नहीं रहा था, "
+            "लेकिन वही silence सबसे loud memory बन गई। "
+            "बस music चल रहा था, windows नीचे थीं, सब थके हुए थे — "
+            "लेकिन अंदर से कोई भी उस दिन को खत्म नहीं करना चाहता था। "
+            "हमने vibe capture करने के लिए सैकड़ों photos लीं, "
+            "लेकिन honestly कोई भी photo उस feeling को पूरी तरह explain नहीं कर पाई। "
+            "और शायद यही सबसे खूबसूरत बात है। "
+            "कुछ memories capture करने के लिए नहीं होतीं… बस feel करने के लिए होती हैं। "
+            "और ये trip? "
+            "हाँ… ये पूरी cinema थी।"
+        ),
     }
 
     if language == "hi":
@@ -185,7 +205,7 @@ def generate():
 
     clips = []
     for img in image_paths:
-        clip = ImageClip(img).with_duration(duration_per_image).resized(height=720)
+        clip = ImageClip(img).set_duration(duration_per_image).resize(height=720)
         clips.append(clip)
 
     video = concatenate_videoclips(clips, method="compose")
@@ -194,17 +214,27 @@ def generate():
     try:
         music_path = download_music(vibe)
         if music_path:
-            bg_music = AudioFileClip(music_path).with_duration(video.duration).multiply_volume(0.15)
-            voice_clip = voice_audio.with_duration(video.duration)
-            final_audio = CompositeAudioClip([bg_music, voice_clip])
+           from moviepy.audio.fx.all import audio_loop
+
+           bg_music = AudioFileClip(music_path).volumex(0.10)
+           bg_music = audio_loop(bg_music, duration=video.duration)
+
+           voice_clip = voice_audio.set_duration(video.duration)
+
+           final_audio = CompositeAudioClip([
+             bg_music,
+             voice_clip
+])
         else:
-            final_audio = voice_audio.with_duration(video.duration)
+            final_audio = voice_audio.set_duration(video.duration)
     except Exception as e:
         print(f"Music mixing failed: {e}")
-        final_audio = voice_audio.with_duration(video.duration)
+        final_audio = voice_audio.set_duration(video.duration)
 
-    final_video = video.with_audio(final_audio)
+    final_video = video.set_audio(final_audio)
     output_path = os.path.join(OUTPUT_FOLDER, "final.mp4")
     final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac")
 
     return send_file(output_path, mimetype="video/mp4")
+if __name__ == "__main__":
+    app.run(debug=True)
