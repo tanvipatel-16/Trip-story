@@ -4,7 +4,7 @@ moviepy==2.1.1
 imageio
 imageio-ffmpeg
 numpy
-pillow==9.5.0
+pillow
 werkzeug
 gunicorn
 decorator
