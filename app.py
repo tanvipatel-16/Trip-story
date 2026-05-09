@@ -210,21 +210,15 @@ def generate():
 
     video = concatenate_videoclips(clips, method="compose")
 
-    # Mix background music + voice
+   # Mix background music + voice
     try:
         music_path = download_music(vibe)
         if music_path:
-           from moviepy.audio.fx.all import audio_loop
-
-           bg_music = AudioFileClip(music_path).volumex(0.10)
-           bg_music = audio_loop(bg_music, duration=video.duration)
-
-           voice_clip = voice_audio.set_duration(video.duration)
-
-           final_audio = CompositeAudioClip([
-             bg_music,
-             voice_clip
-])
+            from moviepy.audio.fx.all import audio_loop
+            bg_music = AudioFileClip(music_path).volumex(0.10)
+            bg_music = audio_loop(bg_music, duration=video.duration)
+            voice_clip = voice_audio.set_duration(video.duration)
+            final_audio = CompositeAudioClip([bg_music, voice_clip])
         else:
             final_audio = voice_audio.set_duration(video.duration)
     except Exception as e:
@@ -233,7 +227,15 @@ def generate():
 
     final_video = video.set_audio(final_audio)
     output_path = os.path.join(OUTPUT_FOLDER, "final.mp4")
-    final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac")
+    
+    final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac", threads=1, logger=None)
+
+    # Cleanup memory
+    final_video.close()
+    video.close()
+    voice_audio.close()
+    if 'bg_music' in locals():
+        bg_music.close()
 
     return send_file(output_path, mimetype="video/mp4")
 if __name__ == "__main__":
