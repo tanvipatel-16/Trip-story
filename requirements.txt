@@ -1,0 +1,10 @@
+flask
+gtts
+moviepy==1.0.3
+imageio
+imageio-ffmpeg
+numpy
+pillow==9.5.0
+werkzeug
+gunicorn
+decorator==4.4.2
